@@ -1,0 +1,174 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: nifi-flow
+  annotations:
+    description: Template for Apache NiFi flows
+    tags: app,nifi
+    iconClass: icon-apache
+objects:
+- kind: Service
+  apiVersion: v1
+  spec:
+    ports:
+    - name: web
+      port: 8080
+      targetPort: 8080
+    selector:
+      deploymentConfig: ${APPLICATION_NAME}
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels:
+      app: ${APPLICATION_NAME}
+    annotations:
+      description: The web server's http port.
+- kind: Route
+  apiVersion: v1
+  id: "${APPLICATION_NAME}-http"
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels:
+      app: ${APPLICATION_NAME}
+    annotations:
+      description: Route for application's http service.
+  spec:
+    host: "${APPLICATION_DOMAIN}"
+    to:
+      name: ${APPLICATION_NAME}
+- kind: ImageStream
+  apiVersion: v1
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels:
+      app: ${APPLICATION_NAME}
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: ${APPLICATION_NAME}
+    name: ${APPLICATION_NAME}
+  spec:
+    nodeSelector:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: "${APPLICATION_NAME}:latest"
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      binary: {}
+      type: Binary
+    strategy:
+      dockerStrategy:
+        from:
+          kind: ImageStreamTag
+          name: ${NIFI_BASE_IMAGE}
+          namespace: ${IMAGE_STREAM_NAMESPACE}
+    triggers: {}
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels:
+      app: ${APPLICATION_NAME}
+  spec:
+    strategy:
+      type: Recreate
+    triggers:
+    - type: ImageChange
+      imageChangeParams:
+        automatic: false
+        containerNames:
+        - ${APPLICATION_NAME}
+        from:
+          kind: ImageStream
+          name: ${APPLICATION_NAME}:${TARGET_ENVIRONMENT}
+    - type: ConfigChange
+    replicas: 1
+    selector:
+      deploymentConfig: ${APPLICATION_NAME}
+    template:
+      metadata:
+        name: ${APPLICATION_NAME}
+        labels:
+          deploymentConfig: ${APPLICATION_NAME}
+          app: ${APPLICATION_NAME}
+      spec:
+        terminationGracePeriodSeconds: 60
+        containers:
+        - name: ${APPLICATION_NAME}
+          image: ${APPLICATION_NAME}:${TARGET_ENVIRONMENT}
+          imagePullPolicy: Always
+          ports:
+          - name: http
+            containerPort: 8080
+            protocol: TCP
+          env:
+          - name: "NIFI_JAVA_XMS"
+            value: ${NIFI_JAVA_XMS}
+          - name: "NIFI_JAVA_XMX"
+            value: ${NIFI_JAVA_XMX}
+          - name: "NIFI_TIMEZONE"
+            value: ${NIFI_TIMEZONE}
+          - name: "ENVIRONMENT"
+            value: ${TARGET_ENVIRONMENT}
+          - name: "HOME"
+            value: /tmp
+          resources:
+            limits:
+              cpu: ${CPU_LIMIT}
+              memory: ${MEMORY_LIMIT}
+            requests:
+              cpu: ${CPU_REQUEST}
+              memory: ${MEMORY_REQUEST}
+          volumeMounts: {}
+        volumes: {}
+parameters:
+- name: APPLICATION_NAME
+  description: "The name for the application."
+  required: true
+- name: APPLICATION_DOMAIN
+  description: "Custom hostname for service routes."
+- name: TARGET_ENVIRONMENT
+  description: "Environment in which the application is to be deployed (DEV, SIT, UAT, PRO)."
+  value: "dev"
+  required: true
+- name: NIFI_BASE_IMAGE
+  description: "Base image to use"
+  value: "nifi-ocp:latest"
+  required: true
+- name: IMAGE_STREAM_NAMESPACE
+  description: "Namespace in which the ImageStreams are installed."
+  value: "openshift"
+  required: true
+- name: CPU_REQUEST
+  description: "Minimum amount of CPU that the container may consume. Unit (m) has to be included."
+  value: "600m"
+  required: true
+- name: CPU_LIMIT
+  description: "Maximum amount of CPU that the container may consume. Unit (m) has to be included."
+  value: "1000m"
+  required: true
+- name: MEMORY_REQUEST
+  description: "Minimum amount of memory that the container may consume. Unit (Mi, Gi) has to be included."
+  value: "900Mi"
+  required: true
+- name: MEMORY_LIMIT
+  description: "Maximum amount of memory that the container may consume. Unit (Mi, Gi) has to be included."
+  value: "1300Mi"
+  required: true
+- name: NIFI_JAVA_XMS
+  description: "Startup heap to be requested by the JVM."
+  value: "-Xms512m"
+  required: true
+- name: NIFI_JAVA_XMX
+  description: "Maximum heap to be requested by the JVM."
+  value: "-Xms512m"
+  required: true
+- name: NIFI_TIMEZONE
+  description: "Timezone to be used by the JVM."
+  value: "-Duser.timezone=Europe/Berlin"
+  required: true
+labels:
+  template: nifi-flow
