@@ -10,7 +10,7 @@ This repository contains all necessary resources to deploy NiFi flows in Openshi
 
 The resources included in this repository **should be considered as a PoC and won't be maintained for future Apache NiFi versions**, but can be used as a starting point to understand how to deploy NiFi in OCP.
 
-> **Note**:This is by no means an official image to deploy Apache NiFi in OCP, and it's not supported in Red Hat in any way.
+> **Note**:This is by no means an official image to deploy Apache NiFi in OCP, and it's not supported by Red Hat in any way.
 
 ## Modified base image
 
